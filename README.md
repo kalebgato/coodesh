@@ -1,26 +1,61 @@
-# Project Empty Template
+# Arbitralis - PoC de Webhook Nao-Bloqueante
 
-Este é um repositório de exemplo para você começar a desenvolver a questão, leia com atenção os requisitos do enunciado da questão na plataforma e seguia as boas práticas sobre como utilizar este repositório.
+PoC de API em FastAPI para receber webhooks de negociacao via WhatsApp sem bloquear a resposta HTTP enquanto o processamento do LLM acontece.
 
+## Objetivo
 
-## Readme do Repositório
+Resolver o problema de timeout do webhook desacoplando o recebimento da mensagem do processamento do LLM.
 
-- Deve conter o título do projeto
-- Uma descrição sobre o projeto em frase
-- Deve conter uma lista com linguagem, framework e/ou tecnologias usadas
-- Como instalar e usar o projeto (instruções)
-- Não esqueça o [.gitignore](https://www.toptal.com/developers/gitignore)
-- Se está usando github pessoal, referencie que é um challenge by coodesh:  
+## Como funciona
 
->  This is a challenge by [Coodesh](https://coodesh.com/)
+1. `POST /webhook` recebe o payload e retorna `202 Accepted` imediatamente.
+2. A mensagem entra em uma fila em memoria.
+3. Um worker assincromo consome a fila, chama um LLM simulado (com latencia e falha ocasional) e dispara a resposta final via um gateway mock.
 
-## Finalização e Instruções para a Apresentação
+## Endpoints
 
-1. Adicione o link do repositório com a sua solução na questão na plataforma
-2. Verifique se o Readme está bom e faça o commit final em seu repositório;
-3. Envie e aguarde as instruções para seguir. Caso o teste tenha apresentação de vídeo, dentro da tela de entrega será possível gravar após adicionar o link do repositório. Sucesso e boa sorte. =)
+- `POST /webhook`
+  - Exemplo de payload:
 
+    ```json
+    {
+      "user_id": "5511999999999",
+      "message": "Quero renegociar minha divida"
+    }
+    ```
 
-## Suporte
+  - Retorno: `202 Accepted`
+- `GET /messages/{message_id}`
+  - Consulta status do processamento (`queued`, `processing`, `sent`, `failed`)
+- `GET /outbound-mock`
+  - Mostra envios simulados de resposta ao usuario
 
-Para tirar dúvidas sobre o processo envie uma mensagem diretamente a um especialista no chat da plataforma. 
+## Rodando localmente
+
+Requisitos:
+
+- Python 3.11+
+
+Instalacao:
+
+```bash
+pip install -r requirements.txt
+```
+
+Executar API:
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+## Executando testes
+
+```bash
+pytest -q
+```
+
+Os testes cobrem:
+
+- resposta nao-bloqueante mesmo com LLM lento
+- fluxo de sucesso com envio no mock outbound
+- fluxo de erro com falha do LLM.
